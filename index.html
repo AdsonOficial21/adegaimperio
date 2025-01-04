@@ -1,7 +1,5 @@
-<html>
-<head>
+<html><head><base href=".">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <base href=".">
     <style>
 * {
     font-weight: bold !important;
@@ -951,6 +949,9 @@ body {
   font-size: 15px;
   margin: 15px 0;
   resize: vertical;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .observation-buttons {
@@ -1056,7 +1057,7 @@ body {
 </head>
 <body>
 <div class="header">
-    <img src="https://i.imgur.com/cxNqb50.png" alt="Logo Adega" class="logo">
+    <img src="https://a.espncdn.com/i/teamlogos/soccer/500/819.png" alt="Logo Adega" class="logo">
     <h1>Adega Imp&#xe9;rio</h1>
     <div class="cart-icon" onclick="toggleCart()">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1105,15 +1106,15 @@ body {
     <form id="deliveryForm">
         <div>
             <label for="name">Nome:</label>
-            <input type="text" id="name" required placeholder="Qual é o seu nome?">
+            <input type="text" id="name" required placeholder="Qual &#xe9; o seu nome?">
         </div>
         <div>
             <label for="street">Rua:</label>
-            <input type="text" id="street" required placeholder="Qual é o nome da sua rua?">
+            <input type="text" id="street" required placeholder="Qual &#xe9; o nome da sua rua?">
         </div>
         <div>
             <label for="number">N&#xfa;mero:</label>
-            <input type="text" id="number" required placeholder="Qual é o número da sua casa?">
+            <input type="text" id="number" required placeholder="Qual &#xe9; o n&#xfa;mero da sua casa?">
         </div>
         <div>
             <label for="neighborhood">Bairro:</label>
@@ -1121,7 +1122,7 @@ body {
         </div>
         <div>
             <label for="phone">Telefone:</label>
-            <input type="tel" id="phone" required placeholder="Qual é o número do seu telefone?" maxlength="9" pattern="\d{9}">
+            <input type="tel" id="phone" required placeholder="Qual &#xe9; o n&#xfa;mero do seu telefone?" maxlength="9" pattern="\d{9}">
         </div>
         <div>
             <label for="payment">Formas de Pagamento:</label>
@@ -1164,7 +1165,7 @@ body {
           </div>
         </div>
         <div class="form-buttons">
-            <button type="button" class="cancel-btn" onclick="closeCheckoutForm()">Cancelar</button>
+            <button type="button" class="cancel-btn" onclick="closeCheckoutForm()">Voltar</button>
             <button type="submit" class="confirm-btn">Confirmar Pedido</button>
         </div>
     </form>
@@ -1180,7 +1181,7 @@ body {
   </div>
   <div id="changeAmountContainer" style="display: none;">
     <h3>Qual a nota?</h3>
-    <input type="number" id="changeAmount" placeholder="Digite o valor que voc&#xea; ir&#xe1; pagar">
+    <input type="number" id="changeAmount" inputmode="numeric" placeholder="Digite o valor que voc&#xea; ir&#xe1; pagar">
     <div class="change-confirm-buttons">
       <button onclick="confirmChangeAmount()">Confirmar</button>
       <button onclick="cancelChangeAmount()">Cancelar</button>
@@ -1243,6 +1244,53 @@ let currentCategory = '';
 let needsChange = false;
 let changeAmountValue = 0;
 let orderObservation = '';
+let selectedQuantities = {};
+window.pushModalState = function (modalId) {
+  if (!history.state || !history.state.modal || history.state.modalId !== modalId) {
+    history.pushState({
+      modal: true,
+      modalId: modalId
+    }, '');
+  }
+};
+window.addEventListener('popstate', function (event) {
+  const activeModals = [{
+    element: document.getElementById('statusModal'),
+    closeFunc: closeStatusModal,
+    priority: 1
+  }, {
+    element: document.getElementById('cartModal'),
+    closeFunc: toggleCart,
+    priority: 2
+  }, {
+    element: document.getElementById('checkoutForm'),
+    closeFunc: closeCheckoutForm,
+    priority: 3
+  }, {
+    element: document.getElementById('phoneInputModal'),
+    closeFunc: closePhoneModal,
+    priority: 4
+  }, {
+    element: document.getElementById('changeModal'),
+    closeFunc: hideChangeModal,
+    priority: 5
+  }, {
+    element: document.getElementById('observationModal'),
+    closeFunc: cancelObservation,
+    priority: 6
+  }];
+  activeModals.sort((a, b) => b.priority - a.priority);
+  const activeModal = activeModals.find(modal => modal.element.classList.contains('active') || modal.element.style.display === 'block');
+  if (activeModal) {
+    if (activeModal.element.id === 'checkoutForm') {
+      closeCheckoutForm();
+      toggleCart();
+    } else {
+      activeModal.closeFunc();
+    }
+    event.preventDefault();
+  }
+});
 function updateCartCount() {
   const uniqueItems = new Set(cart.map(item => item.id)).size;
   document.querySelector('.cart-count').textContent = uniqueItems;
@@ -1295,6 +1343,9 @@ window.toggleCart = function () {
     return;
   }
   cartModal.classList.toggle('active');
+  if (cartModal.classList.contains('active')) {
+    pushModalState('cartModal');
+  }
 };
 window.removeFromCart = function (index) {
   cart.splice(index, 1);
@@ -1313,6 +1364,7 @@ window.finalizarCompra = function () {
   }
   document.getElementById('formOverlay').classList.add('active');
   document.getElementById('checkoutForm').classList.add('active');
+  pushModalState('checkoutForm');
   const productsSummary = document.getElementById('productsSummary');
   const productsSummaryTotal = document.getElementById('productsSummaryTotal');
   productsSummary.innerHTML = '';
@@ -1335,6 +1387,9 @@ window.finalizarCompra = function () {
 window.closeCheckoutForm = function () {
   document.getElementById('formOverlay').classList.remove('active');
   document.getElementById('checkoutForm').classList.remove('active');
+  if (!window.isBackButtonPressed) {
+    toggleCart();
+  }
   document.getElementById('name').value = '';
   document.getElementById('street').value = '';
   document.getElementById('number').value = '';
@@ -1420,17 +1475,23 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
   minusBtn.textContent = '-';
   const quantityDisplay = document.createElement('span');
   quantityDisplay.className = 'selected-quantity';
-  quantityDisplay.textContent = '0';
+  let currentQuantity = selectedQuantities[productId] || 0;
+  quantityDisplay.textContent = currentQuantity;
   const plusBtn = document.createElement('button');
   plusBtn.className = 'quantity-btn';
   plusBtn.textContent = '+';
   const addToCartBtn = document.createElement('button');
   addToCartBtn.className = 'add-to-cart-btn';
   addToCartBtn.textContent = 'Adicionar ao Carrinho';
-  let currentQuantity = 0;
+  if (currentQuantity > 0) {
+    addToCartBtn.classList.add('visible');
+  }
+  minusBtn.disabled = currentQuantity === 0;
+  plusBtn.disabled = currentQuantity === maxQuantity;
   minusBtn.addEventListener('click', () => {
     if (currentQuantity > 0) {
       currentQuantity--;
+      selectedQuantities[productId] = currentQuantity;
       quantityDisplay.textContent = currentQuantity;
       minusBtn.disabled = currentQuantity === 0;
       plusBtn.disabled = false;
@@ -1440,6 +1501,7 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
   plusBtn.addEventListener('click', () => {
     if (currentQuantity < maxQuantity) {
       currentQuantity++;
+      selectedQuantities[productId] = currentQuantity;
       quantityDisplay.textContent = currentQuantity;
       minusBtn.disabled = false;
       plusBtn.disabled = currentQuantity === maxQuantity;
@@ -1462,12 +1524,12 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
     updateCartCount();
     updateCartDisplay();
     currentQuantity = 0;
+    selectedQuantities[productId] = 0;
     quantityDisplay.textContent = currentQuantity;
     minusBtn.disabled = true;
     plusBtn.disabled = false;
     addToCartBtn.classList.remove('visible');
   });
-  minusBtn.disabled = true;
   container.appendChild(minusBtn);
   container.appendChild(quantityDisplay);
   container.appendChild(plusBtn);
@@ -1554,6 +1616,7 @@ window.checkOrderStatus = function () {
   if (!phone) {
     showPhoneModal();
   } else {
+    pushModalState();
     fetchOrderStatus(phone);
     document.getElementById('statusModal').classList.add('active');
   }
@@ -1621,6 +1684,7 @@ function displayOrderStatus(orders) {
 }
 function showPhoneModal() {
   document.getElementById('phoneInputModal').classList.add('active');
+  pushModalState();
 }
 window.closePhoneModal = function () {
   document.getElementById('phoneInputModal').classList.remove('active');
@@ -1689,6 +1753,7 @@ window.addMoreProducts = function () {
 function showChangeModal() {
   document.getElementById('changeModal').style.display = 'block';
   document.getElementById('changeModalOverlay').style.display = 'block';
+  pushModalState();
   const form = document.getElementById('deliveryForm');
   const inputs = form.querySelectorAll('input, select, textarea, button');
   inputs.forEach(input => {
@@ -1805,6 +1870,7 @@ window.editTroco = function editTroco() {
   changeButtons.style.display = 'none';
   modalTitle.style.display = 'none';
   changeAmountContainer.style.display = 'block';
+  document.getElementById('changeAmount').focus();
   const form = document.getElementById('deliveryForm');
   const inputs = form.querySelectorAll('input, select, textarea, button');
   inputs.forEach(input => {
@@ -1826,6 +1892,7 @@ window.handleObservationChange = function () {
   const observationSelect = document.getElementById('observation');
   const observationField = document.getElementById('observationField');
   if (observationSelect.value === 'sim') {
+    pushModalState();
     document.getElementById('observationTextModal').value = '';
     document.getElementById('observationModal').style.display = 'block';
     const form = document.getElementById('deliveryForm');
@@ -1886,7 +1953,11 @@ window.editObservation = function (e) {
   document.getElementById('observationModal').style.display = 'block';
   const observationField = document.getElementById('observationField');
   const rawText = observationField.firstChild.textContent.trim();
-  document.getElementById('observationTextModal').value = rawText;
+  const observationTextModal = document.getElementById('observationTextModal');
+  observationTextModal.value = rawText;
+  setTimeout(() => {
+    observationTextModal.focus();
+  }, 100);
 };
 window.openWhatsApp = function () {
   const phoneNumber = "5579996633369";
