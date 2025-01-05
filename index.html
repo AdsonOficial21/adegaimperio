@@ -1,8 +1,6 @@
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <base href=".">
-    <style>
+<html><head><base href=".">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
 * {
     font-weight: bold !important;
 }
@@ -1607,25 +1605,34 @@ function displayOrderStatus(orders) {
     const statusText = {
       'pending': '🕒 Pendente',
       'accepted': '✅ Pedido Aceito',
-      'cancelled': '❌ Pedido Cancelado',
-      'delivering': '🚚 Pedido Saiu Para Entrega',
+      'cancelled': order.cancelledByUser ? '❌ Pedido Cancelado Pelo Cliente' : '❌ Pedido Cancelado Pelo Estabelecimento',
+      'delivering': '🏍️ Pedido Saiu Para Entrega',
       'completed': '✨ Entregue'
-    }[order.status] || '❓ Desconhecido';
-    const date = new Date(order.timestamp).toLocaleString('pt-BR');
+    }[order.status] || '😍 Pedido Entregue Com Sucesso';
+    const date = new Date(order.timestamp).toLocaleString('pt-BR', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    }) + ' Às ' + new Date(order.timestamp).toLocaleString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
     statusDiv.innerHTML = `
       <p><strong>Data:</strong> ${date}</p>
       <p><strong>Status:</strong> ${statusText}</p>
-      <p><strong>Total:</strong> R$ ${order.total.toFixed(2).replace('.', ',')}</p>
+      <p><strong>Total:</strong> R$ ${order.total % 1 === 0 ? order.total.toString() : order.total.toFixed(2).replace('.', ',')}</p>
       <p><strong>Forma de Pagamento:</strong> ${order.payment.charAt(0).toUpperCase() + order.payment.slice(1)}</p>
-      ${order.payment === 'dinheiro' && order.needsChange ? `<p><strong>Troco para:</strong> R$ ${order.changeAmount.toFixed(2).replace('.', ',')}` : ''}
+      ${order.payment === 'dinheiro' && order.needsChange ? `<p><strong>Troco Para:</strong> R$ ${order.changeAmount % 1 === 0 ? order.changeAmount.toString() : order.changeAmount.toFixed(2).replace('.', ',')}` : ''}
       ${order.observation ? `<p><strong>Observação:</strong> ${order.observation}</p>` : ''}
       <p><strong>Itens:</strong></p>  
       <ul>
         ${order.items.map(item => `
-          <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">${item.quantity}x ${item.name} - R$ ${(item.price * item.quantity).toFixed(2).replace('.', ',')}</li>
+          <li style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">${item.quantity}x ${item.name}: R$ ${item.price * item.quantity % 1 === 0 ? (item.price * item.quantity).toString() : (item.price * item.quantity).toFixed(2).replace('.', ',')}</li>
         `).join('')}
       </ul>
-      <button onclick="cancelOrder('${order.id}')" class="cancel-order-btn">Cancelar Pedido</button>
+      <button onclick="cancelOrder('${order.id}')" class="cancel-order-btn">
+        ${order.status === 'cancelled' ? 'Excluir Pedido' : 'Cancelar Pedido'}
+      </button>
     `;
     statusContent.appendChild(statusDiv);
   });
@@ -1664,22 +1671,34 @@ window.submitPhoneForStatus = function () {
   }
 };
 window.cancelOrder = function (orderId) {
-  if (confirm('Tem certeza que deseja cancelar este pedido?')) {
-    const orderRef = ref(database, `orders/${orderId}`);
-    get(orderRef).then(snapshot => {
-      if (snapshot.exists()) {
-        const order = snapshot.val();
-        order.items.forEach(item => {
-          updateProductQuantity(item.id, item.quantity);
-        });
-        remove(orderRef).then(() => {
-          alert('Pedido cancelado com sucesso!');
-        }).catch(error => {
-          alert('Erro ao cancelar pedido: ' + error.message);
-        });
+  const orderRef = ref(database, `orders/${orderId}`);
+  get(orderRef).then(snapshot => {
+    if (snapshot.exists()) {
+      const order = snapshot.val();
+      const confirmMessage = order.status === 'cancelled' ? 'Tem certeza que deseja excluir este pedido?' : 'Tem certeza que deseja cancelar este pedido?';
+      if (confirm(confirmMessage)) {
+        if (order.status !== 'cancelled') {
+          update(orderRef, {
+            status: 'cancelled',
+            cancelledByUser: true
+          }).then(() => {
+            order.items.forEach(item => {
+              updateProductQuantity(item.id, item.quantity);
+            });
+            alert('Pedido cancelado com sucesso!');
+          }).catch(error => {
+            alert('Erro ao cancelar pedido: ' + error.message);
+          });
+        } else {
+          remove(orderRef).then(() => {
+            alert('Pedido excluído com sucesso!');
+          }).catch(error => {
+            alert('Erro ao excluir pedido: ' + error.message);
+          });
+        }
       }
-    });
-  }
+    }
+  });
 };
 window.updateCartItemQuantity = function (index, delta) {
   if (cart[index]) {
