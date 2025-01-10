@@ -1224,6 +1224,13 @@ body {
     <button class="cancel" onclick="closePhoneModal()">Cancelar</button>
 </div>
 
+<div id="storeClosedOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center;">
+  <div style="background: white; padding: 20px; border-radius: 12px; text-align: center; margin: 20px;">
+    <h2 style="color: #ef4444; margin-bottom: 16px;">Loja Fechada</h2>
+    <p style="color: #4b5563; font-size: 16px;">Desculpe, não estamos atendendo no momento.<br>Por favor, volte mais tarde.</p>
+  </div>
+</div>
+
 <script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, update, remove, get } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 const firebaseConfig = {
@@ -1245,6 +1252,43 @@ let needsChange = false;
 let changeAmountValue = 0;
 let orderObservation = '';
 let selectedQuantities = {};
+let isStoreOpen = false;
+
+function checkStoreStatus() {
+  const storeStatusRef = ref(database, 'storeStatus');
+  onValue(storeStatusRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const status = snapshot.val();
+      isStoreOpen = status.isOpen;
+      updateStoreDisplay();
+    }
+  });
+}
+
+function updateStoreDisplay() {
+  const overlay = document.getElementById('storeClosedOverlay');
+  const cartIcon = document.querySelector('.cart-icon');
+  const searchInput = document.getElementById('searchInput');
+  const categoryFilter = document.getElementById('categoryFilter');
+  const productsGrid = document.getElementById('productsGrid');
+  
+  if (!isStoreOpen) {
+    overlay.style.display = 'flex';
+    cartIcon.style.pointerEvents = 'none';
+    searchInput.disabled = true;
+    categoryFilter.disabled = true;
+    productsGrid.style.opacity = '0.5';
+    productsGrid.style.pointerEvents = 'none';
+  } else {
+    overlay.style.display = 'none';
+    cartIcon.style.pointerEvents = 'auto';
+    searchInput.disabled = false;
+    categoryFilter.disabled = false;
+    productsGrid.style.opacity = '1';
+    productsGrid.style.pointerEvents = 'auto';
+  }
+}
+
 function updateCartCount() {
   const uniqueItems = new Set(cart.map(item => item.id)).size;
   document.querySelector('.cart-count').textContent = uniqueItems;
@@ -1291,6 +1335,10 @@ function updateCartDisplay() {
   cartTotal.textContent = `Total: R$ ${total.toFixed(2).replace('.', ',')}`;
 }
 window.toggleCart = function () {
+  if (!isStoreOpen) {
+    alert('A loja está fechada no momento. Por favor, volte mais tarde.');
+    return;
+  }
   const cartModal = document.getElementById('cartModal');
   if (cart.length === 0 && !cartModal.classList.contains('active')) {
     alert('O carrinho está vazio. Adicione produtos antes de abrir o carrinho.');
@@ -1308,6 +1356,10 @@ window.removeFromCart = function (index) {
   }
 };
 window.finalizarCompra = function () {
+  if (!isStoreOpen) {
+    alert('A loja está fechada no momento. Não é possível finalizar a compra.');
+    return;
+  }
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   if (total < 10) {
     alert('O valor mínimo do pedido é R$ 10,00. Por favor, adicione mais itens ao carrinho.');
@@ -1436,6 +1488,10 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
   minusBtn.disabled = currentQuantity === 0;
   plusBtn.disabled = currentQuantity === maxQuantity;
   minusBtn.addEventListener('click', () => {
+    if (!isStoreOpen) {
+      alert('A loja está fechada no momento.');
+      return;
+    }
     if (currentQuantity > 0) {
       currentQuantity--;
       selectedQuantities[productId] = currentQuantity;
@@ -1446,6 +1502,10 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
     }
   });
   plusBtn.addEventListener('click', () => {
+    if (!isStoreOpen) {
+      alert('A loja está fechada no momento.');
+      return;
+    }
     if (currentQuantity < maxQuantity) {
       currentQuantity++;
       selectedQuantities[productId] = currentQuantity;
@@ -1456,6 +1516,10 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
     }
   });
   addToCartBtn.addEventListener('click', () => {
+    if (!isStoreOpen) {
+      alert('A loja está fechada no momento.');
+      return;
+    }
     const existingItemIndex = cart.findIndex(item => item.id === productId);
     if (existingItemIndex >= 0) {
       cart[existingItemIndex].quantity += currentQuantity;
@@ -1716,32 +1780,16 @@ window.updateCartItemQuantity = function (index, delta) {
 window.addMoreProducts = function () {
   toggleCart();
 };
-function showChangeModal() {
-  document.getElementById('changeModal').style.display = 'block';
-  document.getElementById('changeModalOverlay').style.display = 'block';
-  const form = document.getElementById('deliveryForm');
-  const inputs = form.querySelectorAll('input, select, textarea, button');
-  inputs.forEach(input => {
-    if (input.id !== 'changeAmount') {
-      input.disabled = true;
+function updateProductQuantity(productId, quantityChange) {
+  const productRef = ref(database, `products/${productId}`);
+  get(productRef).then(snapshot => {
+    if (snapshot.exists()) {
+      const currentQuantity = snapshot.val().quantity;
+      update(productRef, {
+        quantity: currentQuantity + quantityChange
+      });
     }
   });
-}
-function hideChangeModal() {
-  document.getElementById('changeModal').style.display = 'none';
-  document.getElementById('changeModalOverlay').style.display = 'none';
-  const form = document.getElementById('deliveryForm');
-  const inputs = form.querySelectorAll('input, select, textarea, button');
-  inputs.forEach(input => {
-    input.disabled = false;
-  });
-  const changeButtons = document.querySelector('.change-buttons');
-  const modalTitle = document.querySelector('#changeModal h3');
-  const changeAmountContainer = document.getElementById('changeAmountContainer');
-  changeButtons.style.display = 'flex';
-  modalTitle.style.display = 'block';
-  changeAmountContainer.style.display = 'none';
-  document.getElementById('payment').value = '';
 }
 window.handlePaymentChange = function handlePaymentChange() {
   const paymentSelect = document.getElementById('payment');
@@ -1937,16 +1985,7 @@ window.removeObservation = function (e) {
   document.getElementById('observation').value = 'nao';
   document.getElementById('observationTextModal').value = '';
 };
-function updateProductQuantity(productId, quantityChange) {
-  const productRef = ref(database, `products/${productId}`);
-  get(productRef).then(snapshot => {
-    if (snapshot.exists()) {
-      const currentQuantity = snapshot.val().quantity;
-      update(productRef, {
-        quantity: currentQuantity + quantityChange
-      });
-    }
-  });
-}</script>
+checkStoreStatus();
+</script>
 </body>
 </html>
