@@ -1080,12 +1080,13 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.75); 
   z-index: 3000;
   justify-content: center;
   align-items: center;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  overflow: hidden;
 }
 
 .store-closed-content {
@@ -1146,6 +1147,12 @@ body {
   margin-bottom: 12px;
 }
 
+body.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
 </style>
 </head>
 <body>
@@ -1667,6 +1674,7 @@ function showStoreClosedModal(hours) {
   }
   hoursText.textContent = displayText;
   modal.style.display = 'flex';
+  document.body.classList.add('modal-open');
   const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
   addToCartButtons.forEach(button => {
     button.disabled = true;
@@ -1689,6 +1697,7 @@ function checkCurrentTime() {
         showStoreClosedModal(storeHours);
       } else {
         document.getElementById('storeClosedModal').style.display = 'none';
+        document.body.classList.remove('modal-open');
         const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
         addToCartButtons.forEach(button => {
           button.disabled = false;
