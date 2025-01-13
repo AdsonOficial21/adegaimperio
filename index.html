@@ -1053,6 +1053,79 @@ body {
   display: flex;
   justify-content: space-between;
 }
+
+.store-closed-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 3000;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.store-closed-content {
+  background: white;
+  padding: 32px;
+  border-radius: 20px;
+  text-align: center;
+  max-width: 90%;
+  width: 400px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transform: translateY(0);
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.store-closed-content h2 {
+  margin-bottom: 24px;
+  color: #dc2626;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.store-closed-content p {
+  margin-bottom: 20px;
+  color: #4b5563;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+#storeHours {
+  white-space: pre-line;
+  background: #f8fafc;
+  padding: 16px 24px;
+  border-radius: 12px;
+  margin: 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  line-height: 1.6;
+  border: 2px solid #e5e7eb;
+}
+
+#storeHours::before {
+  content: "🕒";
+  display: block;
+  font-size: 32px;
+  margin-bottom: 12px;
+}
 </style>
 </head>
 <body>
@@ -1098,6 +1171,13 @@ body {
         <button class="add-more-products-btn" onclick="addMoreProducts()">Adicionar Mais Produtos</button>
         <button class="buy-button" onclick="finalizarCompra()">Comprar</button>
     </div>
+</div>
+<div id="storeClosedModal" class="store-closed-modal">
+  <div class="store-closed-content">
+    <h2>Loja Fechada</h2>
+    <p>Nosso hor&#xe1;rio de funcionamento &#xe9;:</p>
+    <p id="storeHours"></p>
+  </div>
 </div>
 
 <div class="form-overlay" id="formOverlay"></div>
@@ -1224,13 +1304,6 @@ body {
     <button class="cancel" onclick="closePhoneModal()">Cancelar</button>
 </div>
 
-<div id="storeClosedOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 3000; justify-content: center; align-items: center;">
-  <div style="background: white; padding: 20px; border-radius: 12px; text-align: center; margin: 20px;">
-    <h2 style="color: #ef4444; margin-bottom: 16px;">Loja Fechada</h2>
-    <p style="color: #4b5563; font-size: 16px;">Desculpe, não estamos atendendo no momento.<br>Por favor, volte mais tarde.</p>
-  </div>
-</div>
-
 <script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getDatabase, ref, onValue, push, update, remove, get } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
 const firebaseConfig = {
@@ -1252,43 +1325,6 @@ let needsChange = false;
 let changeAmountValue = 0;
 let orderObservation = '';
 let selectedQuantities = {};
-let isStoreOpen = false;
-
-function checkStoreStatus() {
-  const storeStatusRef = ref(database, 'storeStatus');
-  onValue(storeStatusRef, (snapshot) => {
-    if (snapshot.exists()) {
-      const status = snapshot.val();
-      isStoreOpen = status.isOpen;
-      updateStoreDisplay();
-    }
-  });
-}
-
-function updateStoreDisplay() {
-  const overlay = document.getElementById('storeClosedOverlay');
-  const cartIcon = document.querySelector('.cart-icon');
-  const searchInput = document.getElementById('searchInput');
-  const categoryFilter = document.getElementById('categoryFilter');
-  const productsGrid = document.getElementById('productsGrid');
-  
-  if (!isStoreOpen) {
-    overlay.style.display = 'flex';
-    cartIcon.style.pointerEvents = 'none';
-    searchInput.disabled = true;
-    categoryFilter.disabled = true;
-    productsGrid.style.opacity = '0.5';
-    productsGrid.style.pointerEvents = 'none';
-  } else {
-    overlay.style.display = 'none';
-    cartIcon.style.pointerEvents = 'auto';
-    searchInput.disabled = false;
-    categoryFilter.disabled = false;
-    productsGrid.style.opacity = '1';
-    productsGrid.style.pointerEvents = 'auto';
-  }
-}
-
 function updateCartCount() {
   const uniqueItems = new Set(cart.map(item => item.id)).size;
   document.querySelector('.cart-count').textContent = uniqueItems;
@@ -1335,10 +1371,6 @@ function updateCartDisplay() {
   cartTotal.textContent = `Total: R$ ${total.toFixed(2).replace('.', ',')}`;
 }
 window.toggleCart = function () {
-  if (!isStoreOpen) {
-    alert('A loja está fechada no momento. Por favor, volte mais tarde.');
-    return;
-  }
   const cartModal = document.getElementById('cartModal');
   if (cart.length === 0 && !cartModal.classList.contains('active')) {
     alert('O carrinho está vazio. Adicione produtos antes de abrir o carrinho.');
@@ -1356,35 +1388,49 @@ window.removeFromCart = function (index) {
   }
 };
 window.finalizarCompra = function () {
-  if (!isStoreOpen) {
-    alert('A loja está fechada no momento. Não é possível finalizar a compra.');
-    return;
-  }
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  if (total < 10) {
-    alert('O valor mínimo do pedido é R$ 10,00. Por favor, adicione mais itens ao carrinho.');
-    return;
-  }
-  document.getElementById('formOverlay').classList.add('active');
-  document.getElementById('checkoutForm').classList.add('active');
-  const productsSummary = document.getElementById('productsSummary');
-  const productsSummaryTotal = document.getElementById('productsSummaryTotal');
-  productsSummary.innerHTML = '';
-  let totalCart = 0;
-  cart.forEach(item => {
-    const itemTotal = item.price * item.quantity;
-    totalCart += itemTotal;
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <span>${item.quantity}x ${item.name}</span>
-      <span>R$ ${itemTotal.toFixed(2)}</span>
-    `;
-    productsSummary.appendChild(li);
+  const storeHoursRef = ref(database, 'storeHours');
+  get(storeHoursRef).then(snapshot => {
+    if (snapshot.exists()) {
+      const storeHours = snapshot.val();
+      if (storeHours.status === 'closed') {
+        showStoreClosedModal(storeHours);
+        return;
+      }
+      const now = new Date();
+      const currentTime = now.getHours() * 100 + now.getMinutes();
+      const openTime = parseInt(storeHours.openTime.replace(':', ''));
+      const closeTime = parseInt(storeHours.closeTime.replace(':', ''));
+      if (currentTime < openTime || currentTime >= closeTime) {
+        showStoreClosedModal(storeHours);
+        return;
+      }
+      const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      if (total < 10) {
+        alert('O valor mínimo do pedido é R$ 10,00. Por favor, adicione mais itens ao carrinho.');
+        return;
+      }
+      document.getElementById('formOverlay').classList.add('active');
+      document.getElementById('checkoutForm').classList.add('active');
+      const productsSummary = document.getElementById('productsSummary');
+      const productsSummaryTotal = document.getElementById('productsSummaryTotal');
+      productsSummary.innerHTML = '';
+      let totalCart = 0;
+      cart.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        totalCart += itemTotal;
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${item.quantity}x ${item.name}</span>
+          <span>R$ ${itemTotal.toFixed(2)}</span>
+        `;
+        productsSummary.appendChild(li);
+      });
+      productsSummaryTotal.innerHTML = `
+        <span>Total</span>
+        <span>R$ ${totalCart.toFixed(2)}</span>
+      `;
+    }
   });
-  productsSummaryTotal.innerHTML = `
-    <span>Total</span>
-    <span>R$ ${totalCart.toFixed(2)}</span>
-  `;
 };
 window.closeCheckoutForm = function () {
   document.getElementById('formOverlay').classList.remove('active');
@@ -1488,10 +1534,6 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
   minusBtn.disabled = currentQuantity === 0;
   plusBtn.disabled = currentQuantity === maxQuantity;
   minusBtn.addEventListener('click', () => {
-    if (!isStoreOpen) {
-      alert('A loja está fechada no momento.');
-      return;
-    }
     if (currentQuantity > 0) {
       currentQuantity--;
       selectedQuantities[productId] = currentQuantity;
@@ -1502,10 +1544,6 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
     }
   });
   plusBtn.addEventListener('click', () => {
-    if (!isStoreOpen) {
-      alert('A loja está fechada no momento.');
-      return;
-    }
     if (currentQuantity < maxQuantity) {
       currentQuantity++;
       selectedQuantities[productId] = currentQuantity;
@@ -1516,10 +1554,6 @@ function createQuantitySelector(productId, maxQuantity, productName, productPric
     }
   });
   addToCartBtn.addEventListener('click', () => {
-    if (!isStoreOpen) {
-      alert('A loja está fechada no momento.');
-      return;
-    }
     const existingItemIndex = cart.findIndex(item => item.id === productId);
     if (existingItemIndex >= 0) {
       cart[existingItemIndex].quantity += currentQuantity;
@@ -1596,6 +1630,48 @@ function filterProducts() {
   `;
   productsSummary.appendChild(li);
 }
+function checkStoreHours() {
+  checkCurrentTime();
+}
+function showStoreClosedModal(hours) {
+  const modal = document.getElementById('storeClosedModal');
+  const hoursText = document.getElementById('storeHours');
+  let displayText = `${hours.openTime} às ${hours.closeTime}`;
+  if (hours.message) {
+    displayText += `\n\n${hours.message}`;
+  }
+  hoursText.textContent = displayText;
+  modal.style.display = 'flex';
+  const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
+  addToCartButtons.forEach(button => {
+    button.disabled = true;
+  });
+}
+function checkCurrentTime() {
+  const storeHoursRef = ref(database, 'storeHours');
+  get(storeHoursRef).then(snapshot => {
+    if (snapshot.exists()) {
+      const storeHours = snapshot.val();
+      if (storeHours.status === 'closed') {
+        showStoreClosedModal(storeHours);
+        return;
+      }
+      const now = new Date();
+      const currentTime = now.getHours() * 100 + now.getMinutes();
+      const openTime = parseInt(storeHours.openTime.replace(':', ''));
+      const closeTime = parseInt(storeHours.closeTime.replace(':', ''));
+      if (currentTime < openTime || currentTime >= closeTime) {
+        showStoreClosedModal(storeHours);
+      } else {
+        document.getElementById('storeClosedModal').style.display = 'none';
+        const addToCartButtons = document.querySelectorAll('.add-to-cart-btn');
+        addToCartButtons.forEach(button => {
+          button.disabled = false;
+        });
+      }
+    }
+  });
+}
 onValue(productsRef, snapshot => {
   const productsGrid = document.getElementById('productsGrid');
   productsGrid.innerHTML = '';
@@ -1606,21 +1682,22 @@ onValue(productsRef, snapshot => {
     if (product.category) {
       categories.add(product.category);
     }
-    allProducts.push({
-      ...product,
-      id: childSnapshot.key
-    });
   });
   const categoryFilter = document.getElementById('categoryFilter');
   categoryFilter.innerHTML = '<option value="">Todas as Categorias</option>';
   Array.from(categories).sort().forEach(category => {
-    const option = document.createElement('option');
-    option.value = category;
-    option.textContent = category;
-    categoryFilter.appendChild(option);
+    categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
+  });
+  snapshot.forEach(childSnapshot => {
+    const product = childSnapshot.val();
+    product.id = childSnapshot.key;
+    allProducts.push(product);
   });
   allProducts.sort((a, b) => a.name.localeCompare(b.name));
-  filterProducts();
+  allProducts.forEach(product => {
+    displayProduct(product, product.id);
+  });
+  checkStoreHours();
 });
 window.checkOrderStatus = function () {
   const phone = localStorage.getItem('customerPhone');
@@ -1985,7 +2062,11 @@ window.removeObservation = function (e) {
   document.getElementById('observation').value = 'nao';
   document.getElementById('observationTextModal').value = '';
 };
-checkStoreStatus();
-</script>
+onValue(ref(database, 'storeHours'), snapshot => {
+  if (snapshot.exists()) {
+    checkCurrentTime();
+  }
+});
+setInterval(checkCurrentTime, 60000);</script>
 </body>
 </html>
