@@ -536,7 +536,7 @@ body {
 }
 
 .cancel-btn {
-    background: #e74c3c;
+    background: #ffa000;
     color: white;
 }
 
@@ -1618,7 +1618,7 @@ function displayProduct(product, productId) {
         ${imageHtml}
         <div class="product-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${product.name}</div>
         <div class="product-price">R$ ${product.price.toFixed(2).replace('.', ',')}</div>
-        <div class="product-quantity">Disponível: ${product.quantity} unidades</div>
+        <div class="product-quantity">Disponível: ${product.quantity} Unidades</div>
     `;
   const quantitySelector = createQuantitySelector(productId, product.quantity, product.name, product.price, product.image);
   productElement.appendChild(quantitySelector);
