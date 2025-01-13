@@ -319,6 +319,7 @@ body {
 }
 
 .cart-item {
+    position: relative;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -379,6 +380,24 @@ body {
 .cart-item button:hover {
     background: #6366f1;
     transform: scale(1.05);
+}
+
+.cart-item button[onclick^="removeFromCart"] {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    z-index: 1;
+}
+
+.cart-item button[onclick^="removeFromCart"]:hover {
+    color: #dc2626;
 }
 
 .cart-total {
@@ -1126,6 +1145,7 @@ body {
   font-size: 32px;
   margin-bottom: 12px;
 }
+
 </style>
 </head>
 <body>
@@ -1189,12 +1209,12 @@ body {
             <input type="text" id="name" required placeholder="Qual &#xe9; o seu nome?">
         </div>
         <div>
-            <label for="street">Rua:</label>
-            <input type="text" id="street" required placeholder="Qual &#xe9; o nome da sua rua?">
+            <label for="number">N&#xfa;mero:</label>
+            <input type="number" id="number" required placeholder="Qual &#xe9; o n&#xfa;mero da sua casa?" inputmode="numeric">
         </div>
         <div>
-            <label for="number">N&#xfa;mero:</label>
-            <input type="text" id="number" required placeholder="Qual &#xe9; o n&#xfa;mero da sua casa?">
+            <label for="street">Rua:</label>
+            <input type="text" id="street" required placeholder="Qual &#xe9; o nome da sua rua?">
         </div>
         <div>
             <label for="neighborhood">Bairro:</label>
@@ -1344,7 +1364,8 @@ function updateCartDisplay() {
     }
     return acc;
   }, {});
-  Object.values(groupedItems).forEach((item, index) => {
+  const sortedItems = Object.values(groupedItems).sort((a, b) => a.name.localeCompare(b.name));
+  sortedItems.forEach((item, index) => {
     const itemTotal = item.price * item.quantity;
     total += itemTotal;
     const product = allProducts.find(p => p.id === item.id);
@@ -1353,18 +1374,22 @@ function updateCartDisplay() {
     itemElement.className = 'cart-item';
     const imageHtml = item.image ? `<img src="${item.image}" alt="${item.name}" class="cart-item-image">` : '';
     itemElement.innerHTML = `
+      <button onclick="removeFromCart(${index})">×</button>
       ${imageHtml}
       <div>
         <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;">${item.name}</div>
         <div style="white-space: nowrap;">${item.quantity}x R$ ${item.price.toFixed(2).replace('.', ',')}</div>
         <div class="cart-quantity-controls" style="width: 100px;">
-          <button class="cart-quantity-btn" onclick="updateCartItemQuantity(${index}, -1)" style="${item.quantity <= 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${item.quantity <= 1 ? 'disabled' : ''}>-</button>
+          <button class="cart-quantity-btn" onclick="updateCartItemQuantity(${index}, -1)" 
+            style="${item.quantity <= 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}" 
+            ${item.quantity <= 1 ? 'disabled' : ''}>-</button>
           <span style="white-space: nowrap;">${item.quantity}</span>
-          <button class="cart-quantity-btn" onclick="updateCartItemQuantity(${index}, 1)" style="${isAtMaxQuantity ? 'opacity: 0.5; cursor: not-allowed;' : ''}" ${isAtMaxQuantity ? 'disabled' : ''}>+</button>
+          <button class="cart-quantity-btn" onclick="updateCartItemQuantity(${index}, 1)"
+            style="${isAtMaxQuantity ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+            ${isAtMaxQuantity ? 'disabled' : ''}>+</button>
         </div>
       </div>
       <div style="white-space: nowrap;">R$ ${itemTotal.toFixed(2).replace('.', ',')}</div>
-      <button onclick="removeFromCart(${index})">×</button>
     `;
     cartItems.appendChild(itemElement);
   });
@@ -1748,7 +1773,7 @@ function displayOrderStatus(orders) {
       'accepted': '✅ Pedido Aceito',
       'cancelled': order.cancelledByUser ? '❌ Pedido Cancelado Pelo Cliente' : '❌ Pedido Cancelado Pelo Estabelecimento',
       'delivering': '🏍️ Pedido Saiu Para Entrega',
-      'completed': '✨ Entregue'
+      'completed': '😍 Pedido Entregue Com Sucesso'
     }[order.status] || '😍 Pedido Entregue Com Sucesso';
     const date = new Date(order.timestamp).toLocaleString('pt-BR', {
       year: 'numeric',
@@ -1758,6 +1783,7 @@ function displayOrderStatus(orders) {
       hour: '2-digit',
       minute: '2-digit'
     });
+    const buttonText = statusText === '😍 Pedido Entregue Com Sucesso' || statusText === '❌ Pedido Cancelado Pelo Cliente' || statusText === '❌ Pedido Cancelado Pelo Estabelecimento' ? 'Excluir Pedido' : 'Cancelar Pedido';
     statusDiv.innerHTML = `
       <p><strong>Data:</strong> ${date}</p>
       <p><strong>Status:</strong> ${statusText}</p>
@@ -1772,7 +1798,7 @@ function displayOrderStatus(orders) {
         `).join('')}
       </ul>
       <button onclick="cancelOrder('${order.id}')" class="cancel-order-btn">
-        ${order.status === 'cancelled' ? 'Excluir Pedido' : 'Cancelar Pedido'}
+        ${buttonText}
       </button>
     `;
     statusContent.appendChild(statusDiv);
@@ -1803,8 +1829,7 @@ window.submitPhoneForStatus = function () {
         closePhoneModal();
         document.getElementById('statusModal').classList.add('active');
       } else {
-        alert('Nenhum pedido encontrado para este número de telefone.');
-        document.getElementById('statusPhoneInput').value = '';
+        closePhoneModal();
       }
     });
   } else {
@@ -1816,9 +1841,37 @@ window.cancelOrder = function (orderId) {
   get(orderRef).then(snapshot => {
     if (snapshot.exists()) {
       const order = snapshot.val();
-      const confirmMessage = order.status === 'cancelled' ? 'Tem certeza que deseja excluir este pedido?' : 'Tem certeza que deseja cancelar este pedido?';
+      const statusText = {
+        'pending': '🕒 Pendente',
+        'accepted': '✅ Pedido Aceito',
+        'cancelled': order.cancelledByUser ? '❌ Pedido Cancelado Pelo Cliente' : '❌ Pedido Cancelado Pelo Estabelecimento',
+        'delivering': '🏍️ Pedido Saiu Para Entrega',
+        'completed': '😍 Pedido Entregue Com Sucesso'
+      }[order.status] || '😍 Pedido Entregue Com Sucesso';
+      const confirmMessage = statusText === '😍 Pedido Entregue Com Sucesso' || statusText === '❌ Pedido Cancelado Pelo Cliente' || statusText === '❌ Pedido Cancelado Pelo Estabelecimento' ? 'Tem certeza que deseja excluir este pedido?' : 'Tem certeza que deseja cancelar este pedido?';
       if (confirm(confirmMessage)) {
-        if (order.status !== 'cancelled') {
+        if (statusText === '😍 Pedido Entregue Com Sucesso' || statusText === '❌ Pedido Cancelado Pelo Cliente' || statusText === '❌ Pedido Cancelado Pelo Estabelecimento') {
+          remove(orderRef).then(() => {
+            alert('Pedido excluído com sucesso!');
+            const ordersRef = ref(database, 'orders');
+            get(ordersRef).then(snapshot => {
+              let hasOrders = false;
+              const phone = localStorage.getItem('customerPhone');
+              snapshot.forEach(childSnapshot => {
+                const order = childSnapshot.val();
+                if (order.phone === phone) {
+                  hasOrders = true;
+                }
+              });
+              if (!hasOrders) {
+                document.getElementById('statusModal').classList.remove('active');
+                localStorage.removeItem('customerPhone');
+              }
+            });
+          }).catch(error => {
+            alert('Erro ao excluir pedido: ' + error.message);
+          });
+        } else {
           update(orderRef, {
             status: 'cancelled',
             cancelledByUser: true
@@ -1830,27 +1883,35 @@ window.cancelOrder = function (orderId) {
           }).catch(error => {
             alert('Erro ao cancelar pedido: ' + error.message);
           });
-        } else {
-          remove(orderRef).then(() => {
-            alert('Pedido excluído com sucesso!');
-          }).catch(error => {
-            alert('Erro ao excluir pedido: ' + error.message);
-          });
         }
       }
     }
   });
 };
 window.updateCartItemQuantity = function (index, delta) {
-  if (cart[index]) {
-    const product = allProducts.find(p => p.id === cart[index].id);
-    if (delta > 0 && cart[index].quantity + delta > product.quantity) {
+  const groupedItems = cart.reduce((acc, item) => {
+    if (!acc[item.id]) {
+      acc[item.id] = {
+        ...item
+      };
+    } else {
+      acc[item.id].quantity += item.quantity;
+    }
+    return acc;
+  }, {});
+  const sortedItems = Object.values(groupedItems).sort((a, b) => a.name.localeCompare(b.name));
+  const itemToUpdate = sortedItems[index];
+  if (itemToUpdate) {
+    const product = allProducts.find(p => p.id === itemToUpdate.id);
+    if (delta > 0 && itemToUpdate.quantity + delta > product.quantity) {
       return;
     }
-    cart[index].quantity += delta;
-    if (cart[index].quantity < 1) {
-      cart[index].quantity = 1;
-    }
+    const cartItemsWithId = cart.filter(item => item.id === itemToUpdate.id);
+    const totalDelta = delta / cartItemsWithId.length;
+    cartItemsWithId.forEach(item => {
+      item.quantity += totalDelta;
+      if (item.quantity < 1) item.quantity = 1;
+    });
     updateCartDisplay();
   }
 };
@@ -2067,6 +2128,35 @@ onValue(ref(database, 'storeHours'), snapshot => {
     checkCurrentTime();
   }
 });
-setInterval(checkCurrentTime, 60000);</script>
+setInterval(checkCurrentTime, 60000);
+function showChangeModal() {
+  const changeModal = document.getElementById('changeModal');
+  const changeModalOverlay = document.getElementById('changeModalOverlay');
+  const changeButtons = document.querySelector('.change-buttons');
+  const modalTitle = document.querySelector('#changeModal h3');
+  const changeAmountContainer = document.getElementById('changeAmountContainer');
+  changeModal.style.display = 'block';
+  changeModalOverlay.style.display = 'block';
+  changeButtons.style.display = 'flex';
+  modalTitle.style.display = 'block';
+  changeAmountContainer.style.display = 'none';
+  const form = document.getElementById('deliveryForm');
+  const inputs = form.querySelectorAll('input, select, textarea, button');
+  inputs.forEach(input => {
+    input.disabled = true;
+  });
+}
+function hideChangeModal() {
+  const changeModal = document.getElementById('changeModal');
+  const changeModalOverlay = document.getElementById('changeModalOverlay');
+  const changeButtons = document.querySelector('.change-buttons');
+  const modalTitle = document.querySelector('#changeModal h3');
+  const changeAmountContainer = document.getElementById('changeAmountContainer');
+  changeModal.style.display = 'none';
+  changeModalOverlay.style.display = 'none';
+  changeButtons.style.display = 'flex';
+  modalTitle.style.display = 'block';
+  changeAmountContainer.style.display = 'none';
+}</script>
 </body>
 </html>
