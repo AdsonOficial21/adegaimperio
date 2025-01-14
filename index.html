@@ -1645,7 +1645,7 @@ function filterProducts() {
   productsGrid.innerHTML = '';
   const filteredProducts = allProducts.filter(product => {
     const nameMatch = product.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(searchTerm);
-    const categoryMatch = !currentCategory || product.category === currentCategory;
+    const categoryMatch = !currentCategory || searchTerm || product.category === currentCategory;
     return nameMatch && categoryMatch;
   });
   if (filteredProducts.length === 0) {
@@ -1656,12 +1656,6 @@ function filterProducts() {
   filteredProducts.forEach(product => {
     displayProduct(product, product.id);
   });
-  const li = document.createElement('li');
-  li.innerHTML = `
-    <span>${item.quantity}x ${item.name}</span>
-    <span>R$ ${itemTotal.toFixed(2).replace('.', ',')}</span>
-  `;
-  productsSummary.appendChild(li);
 }
 function checkStoreHours() {
   checkCurrentTime();
