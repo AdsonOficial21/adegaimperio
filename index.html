@@ -1345,6 +1345,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const database = getDatabase(app);
 const productsRef = ref(database, 'products');
+const categoriesRef = ref(database, 'categories');
 let cart = [];
 let allProducts = [];
 let currentCategory = '';
@@ -1453,13 +1454,13 @@ window.finalizarCompra = function () {
         const li = document.createElement('li');
         li.innerHTML = `
           <span>${item.quantity}x ${item.name}</span>
-          <span>R$ ${itemTotal.toFixed(2)}</span>
+          <span>R$ ${itemTotal.toFixed(2).replace('.', ',')}</span>
         `;
         productsSummary.appendChild(li);
       });
       productsSummaryTotal.innerHTML = `
         <span>Total</span>
-        <span>R$ ${totalCart.toFixed(2)}</span>
+        <span>R$ ${totalCart.toFixed(2).replace('.', ',')}</span>
       `;
     }
   });
@@ -1706,33 +1707,46 @@ function checkCurrentTime() {
     }
   });
 }
+let unsubscribeProducts;
 onValue(productsRef, snapshot => {
   const productsGrid = document.getElementById('productsGrid');
   productsGrid.innerHTML = '';
   allProducts = [];
-  const categories = new Set();
-  snapshot.forEach(childSnapshot => {
-    const product = childSnapshot.val();
-    if (product.category) {
-      categories.add(product.category);
-    }
+  onValue(categoriesRef, categoriesSnapshot => {
+    const categories = new Set();
+    const deletedCategories = new Set();
+    categoriesSnapshot.forEach(childSnapshot => {
+      const category = childSnapshot.val();
+      if (category.deleted) {
+        deletedCategories.add(category.name);
+      } else if (category.name !== 'Sem Categoria') {
+        categories.add(category.name);
+      }
+    });
+    const categoryFilter = document.getElementById('categoryFilter');
+    categoryFilter.innerHTML = '<option value="">Todas as Categorias</option>';
+    Array.from(categories).sort().forEach(category => {
+      categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
+    });
+    snapshot.forEach(childSnapshot => {
+      const product = childSnapshot.val();
+      if (!deletedCategories.has(product.category)) {
+        product.id = childSnapshot.key;
+        allProducts.push(product);
+      }
+    });
+    allProducts.sort((a, b) => a.name.localeCompare(b.name));
+    allProducts.forEach(product => {
+      displayProduct(product, product.id);
+    });
+    checkStoreHours();
   });
-  const categoryFilter = document.getElementById('categoryFilter');
-  categoryFilter.innerHTML = '<option value="">Todas as Categorias</option>';
-  Array.from(categories).sort().forEach(category => {
-    categoryFilter.innerHTML += `<option value="${category}">${category}</option>`;
-  });
-  snapshot.forEach(childSnapshot => {
-    const product = childSnapshot.val();
-    product.id = childSnapshot.key;
-    allProducts.push(product);
-  });
-  allProducts.sort((a, b) => a.name.localeCompare(b.name));
-  allProducts.forEach(product => {
-    displayProduct(product, product.id);
-  });
-  checkStoreHours();
 });
+function cleanup() {
+  if (typeof unsubscribeProducts === 'function') {
+    unsubscribeProducts();
+  }
+}
 window.checkOrderStatus = function () {
   const phone = localStorage.getItem('customerPhone');
   if (!phone) {
@@ -1824,7 +1838,7 @@ window.submitPhoneForStatus = function () {
   const phoneInput = document.getElementById('statusPhoneInput').value;
   if (phoneInput && phoneInput.length === 9) {
     const ordersRef = ref(database, 'orders');
-    onValue(ordersRef, snapshot => {
+    get(ordersRef).then(snapshot => {
       let phoneFound = false;
       snapshot.forEach(childSnapshot => {
         const order = childSnapshot.val();
@@ -1838,6 +1852,7 @@ window.submitPhoneForStatus = function () {
         closePhoneModal();
         document.getElementById('statusModal').classList.add('active');
       } else {
+        alert('Não existe nenhum pedido para este número');
         closePhoneModal();
       }
     });
@@ -1965,7 +1980,9 @@ window.cancelChangeAmount = function () {
   const form = document.getElementById('deliveryForm');
   const inputs = form.querySelectorAll('input, select, textarea, button');
   inputs.forEach(input => {
-    input.disabled = false;
+    if (input.id !== 'changeAmount') {
+      input.disabled = false;
+    }
   });
   document.getElementById('payment').value = 'dinheiro';
 };
@@ -2166,6 +2183,7 @@ function hideChangeModal() {
   changeButtons.style.display = 'flex';
   modalTitle.style.display = 'block';
   changeAmountContainer.style.display = 'none';
-}</script>
+}
+window.addEventListener('beforeunload', cleanup);</script>
 </body>
 </html>
